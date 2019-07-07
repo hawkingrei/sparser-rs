@@ -40,6 +40,36 @@ fn test_ffs() {
     assert!(ffs(64) == 7);
 }
 
+pub unsafe fn search(reg: __m256i, base: Vec<u8>) -> bool {
+    match base.len() {
+        1 => {
+            let base_ptr = _mm256_set1_epi8(*base.get(0).unwrap() as i8);
+            let base_req: __m256i = _mm256_loadu_si256(&base_ptr);
+            let result = search_epi8(reg, base_req);
+        }
+        2 => {
+            let base_ptr = base.repeat(32).as_ptr() as *const __m256i;
+        }
+        4 => return true,
+        _ => return false,
+    }
+
+    return true;
+}
+
+pub fn memmem(reg: &Vec<u8>, base: Vec<u8>) -> bool {
+    let mut local_reg = reg.clone();
+    if local_reg.len() < 32 {
+        local_reg.resize_with(32, Default::default);
+    } else if local_reg.len() == 32 {
+
+    } else {
+
+    }
+
+    return true;
+}
+
 /** Search for an 8-bit search string.
  *
  * @param reg the register filled with the search value
@@ -108,9 +138,9 @@ pub fn search_epi32(reg: __m256i, base: __m256i) -> u32 {
 
 #[cfg(test)]
 mod test {
-    use sparser_kernels::search_epi16;
-    use sparser_kernels::search_epi32;
-    use sparser_kernels::search_epi8;
+    use crate::sparser_kernels::search_epi16;
+    use crate::sparser_kernels::search_epi32;
+    use crate::sparser_kernels::search_epi8;
     use std::arch::x86_64::__m256i;
     use std::arch::x86_64::_mm256_loadu_si256;
 

@@ -2,7 +2,9 @@
 name = "sparser-rs"
 version = "0.1.0"
 authors = ["Wangweizhen <hawking.rei@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 libc = "0.2.43"
 rand = "0.5.5"
+time = "0.1.42"

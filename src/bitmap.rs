@@ -1,92 +1,58 @@
-use utils::bit_util;
-use utils::buffer::Buffer;
+const WORDSZ: usize = 64;
 
-#[derive(PartialEq, Clone, Debug)]
+use std::arch::x86_64::_popcnt64;
+
+#[derive(Copy, Clone)]
 pub struct Bitmap {
-    bits: Buffer,
+    bits: [i64; 1024],
+    count: usize,
+    words: usize,
+}
+
+impl Default for Bitmap {
+    #[inline(always)]
+    fn default() -> Self {
+        let mut words = (1024 / WORDSZ) + 1;
+        Bitmap {
+            bits: [0; 1024],
+            count: 0,
+            words: words,
+        }
+    }
 }
 
 impl Bitmap {
-    pub fn new(num_bits: usize) -> Self {
-        let num_bytes = num_bits / 8 + if num_bits % 8 > 0 { 1 } else { 0 };
-        let r = num_bytes % 64;
-        let len = if r == 0 {
-            num_bytes
-        } else {
-            num_bytes + 64 - r
-        };
-        let mut v = Vec::with_capacity(len);
-        for _ in 0..len {
-            v.push(255); // 1 is not null
-        }
-        Bitmap {
-            bits: Buffer::from(&v[..]),
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.bits.len()
-    }
-
-    pub fn is_set(&self, i: i64) -> bool {
-        bit_util::get_bit(self.bits.data(), i)
-    }
-
-    pub unsafe fn set(&mut self, i: i64) {
-        let raw_data = self.bits.raw_data() as *mut u8;
-        let len = self.bits.len();
-        bit_util::set_bit(std::slice::from_raw_parts_mut(raw_data, len), i)
-    }
-
-    pub unsafe fn unset(&mut self, i: i64) {
-        let raw_data = self.bits.raw_data() as *mut u8;
-        let len = self.bits.len();
-        bit_util::unset_bit(std::slice::from_raw_parts_mut(raw_data, len), i)
-    }
-
     pub fn reset(&mut self) {
-        let len = self.bits.len();
-        let mut v = Vec::with_capacity(len);
-        for _ in 0..len {
-            v.push(255); // 1 is not null
-        }
-        self.bits = Buffer::from(&v[..]);
-    }
-}
-
-impl From<Buffer> for Bitmap {
-    fn from(buf: Buffer) -> Self {
-        Self { bits: buf }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_bitmap_length() {
-        assert_eq!(64, Bitmap::new(63 * 8).len());
-        assert_eq!(64, Bitmap::new(64 * 8).len());
-        assert_eq!(128, Bitmap::new(65 * 8).len());
+        self.bits = [0; 1024];
+        self.count = 0;
     }
 
-    #[test]
-    fn test_bitmap_is_set() {
-        let mut bitmap = Bitmap::from(Buffer::from([0b01001010]));
-        assert_eq!(false, bitmap.is_set(0));
-        assert_eq!(true, bitmap.is_set(1));
-        assert_eq!(false, bitmap.is_set(2));
-        assert_eq!(true, bitmap.is_set(3));
-        assert_eq!(false, bitmap.is_set(4));
-        assert_eq!(false, bitmap.is_set(5));
-        assert_eq!(true, bitmap.is_set(6));
-        assert_eq!(false, bitmap.is_set(7));
+    pub fn set(&mut self, index: usize) {
+        let word = index / WORDSZ;
+        let shift = word % WORDSZ;
+        self.bits[word] |= (0x1 << shift);
+        self.count += 1;
+    }
+
+    pub fn unset(&mut self, index: usize) {
+        let word = index / WORDSZ;
+        let shift = word % WORDSZ;
+        self.bits[word] &= !(0x1 << shift);
+        self.count -= 1;
+    }
+
+    pub fn and(&self, bm: Bitmap) -> Self {
+        let mut result: Bitmap = Default::default();
         unsafe {
-            bitmap.set(7);
-            assert_eq!(true, bitmap.is_set(7));
-            bitmap.unset(7);
-            assert_eq!(false, bitmap.is_set(7));
+            for i in 0..self.words {
+                result.bits[i] = self.bits[i] & bm.bits[i];
+                result.count += _popcnt64(result.bits[i]) as usize;
+            }
         }
+        result
+    }
+
+    pub fn count(&self) -> usize {
+        return self.count;
     }
 }
